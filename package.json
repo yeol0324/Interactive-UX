@@ -25,7 +25,7 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build"
   },
-  "homepage": "https://yeol0324.github.io/Interactive-UX/",
+  "homepage": "https://yeol0324.github.io/Interactive-UX",
   "eslintConfig": {
     "extends": [
       "react-app",
