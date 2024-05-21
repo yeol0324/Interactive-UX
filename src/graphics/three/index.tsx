@@ -3,7 +3,7 @@ import { Suspense } from "react";
 export default function ArtistPage({}) {
   return (
     <>
-      <div>lottielottielottielottie</div>
+      <div>threethreethreethreethree</div>
     </>
   );
 }
