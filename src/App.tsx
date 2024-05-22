@@ -1,5 +1,7 @@
 import { Suspense, useState, useTransition } from "react";
-import LottiePage from "./animations/lottie/index.tsx";
+import Fabric from "./canvas/fabric/index.tsx";
+import Three from "./graphics/three/start/index.tsx";
+import Drive from "./graphics/three/drive/index.tsx";
 import Layout from "./Layout.tsx";
 import { Route, Routes, useNavigate } from "react-router-dom";
 
@@ -14,11 +16,13 @@ export default function App() {
             element={
               <div>
                 this is interactive-ux project
-                <button onClick={() => navigate("/lottie")}>lottie</button>
+                <button onClick={() => navigate("/three")}>Three</button>
               </div>
             }
           />
-          <Route path="/lottie" element={<LottiePage />} />
+          <Route path="/fabric" element={<Fabric />} />
+          <Route path="/three" element={<Three />} />
+          <Route path="/drive" element={<Drive />} />
         </Routes>
       </Layout>
     </Suspense>
