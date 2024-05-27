@@ -12,8 +12,7 @@ export default function ThreePage() {
     const camera = createCamera();
     const controls = createControls(camera, renderer.domElement);
 
-    const textureLoader = new THREE.TextureLoader();
-    addGround(scene, textureLoader);
+    addGround(scene);
     addLights(scene);
 
     const me = createSphere();
@@ -94,28 +93,14 @@ const createControls = (camera: THREE.Camera, domElement: HTMLElement) => {
 };
 
 // Ground 추가 함수
-const addGround = (scene: THREE.Scene, textureLoader: THREE.TextureLoader) => {
-  textureLoader.load(
-    "https://threejsfundamentals.org/threejs/resources/images/checker.png",
-    (groundTexture) => {
-      groundTexture.wrapS = THREE.RepeatWrapping;
-      groundTexture.wrapT = THREE.RepeatWrapping;
-      groundTexture.repeat.set(100, 100); // 텍스처 반복 설정
-
-      const groundGeometry = new THREE.PlaneGeometry(10000, 10000); // 매우 큰 평면
-      const groundMaterial = new THREE.MeshStandardMaterial({
-        map: groundTexture,
-        color: 0x00ff00,
-      });
-      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-      ground.rotation.x = -Math.PI / 2; // 평면을 수평으로 만듭니다
-      scene.add(ground);
-    },
-    undefined,
-    (error) => {
-      console.error("An error occurred while loading the texture:", error);
-    }
-  );
+const addGround = (scene: THREE.Scene) => {
+  const groundGeometry = new THREE.PlaneGeometry(10000, 10000); // 매우 큰 평면
+  const groundMaterial = new THREE.MeshStandardMaterial({
+    color: 0x00ff00,
+  });
+  const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+  ground.rotation.x = -Math.PI / 2; // 평면을 수평으로 만듭니다
+  scene.add(ground);
 };
 
 // 조명 추가 함수
@@ -151,7 +136,7 @@ const createWall = () => {
 // Box 생성 함수
 const createBox = () => {
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
-  const boxMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+  const boxMaterial = new THREE.MeshStandardMaterial({ color: 0x00ffff });
   const box = new THREE.Mesh(boxGeometry, boxMaterial);
   const bbox = new THREE.Box3().setFromObject(box);
   const height = bbox.max.y - bbox.min.y;
