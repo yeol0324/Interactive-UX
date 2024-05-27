@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
@@ -13,13 +13,14 @@ export default function ThreePage({}) {
     // Scene 만들기
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("skyblue");
+    scene.fog = new THREE.Fog(0xcccccc, 10, 15);
 
     // Renderer 생성 및 크기 설정
     const renderer = new THREE.WebGLRenderer({ canvas });
     renderer.setSize(canvas.width, canvas.height);
 
     // 카메라 생성 및 위치 설정
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 10);
     camera.position.set(0, 0, 2);
 
     // 바닥 생성 및 Scene에 추가
@@ -54,10 +55,10 @@ export default function ThreePage({}) {
 
     // 여러 개의 조형물을 다른 위치에 추가
     const conePositions = [
-      { x: 0.4, y: 0.2, z: 0.3 },
-      { x: 0.2, y: 0.2, z: 0 },
-      { x: -0.2, y: 0.2, z: 0.2 },
-      { x: -0.3, y: 0.2, z: -0.2 },
+      { x: 0.4, y: 0.1, z: 0.3 },
+      { x: 0.2, y: 0.1, z: 0 },
+      { x: -0.2, y: 0.1, z: 0.2 },
+      { x: -0.3, y: 0.1, z: -0.2 },
     ];
 
     conePositions.forEach((pos) => {
@@ -68,25 +69,23 @@ export default function ThreePage({}) {
 
     // 눈 생성 및 scene 에 추가
     const snowGeometry = new THREE.SphereGeometry(0.03, 0.03, 36);
-    const snowMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    const snow = new THREE.Mesh(snowGeometry, snowMaterial);
-
-    // 여러 개의 눈을 다른 위치에 추가
-    const positions = [
-      { x: 0.5, y: 0.5, z: 0.1 },
-      { x: 0.2, y: 0.5, z: 0.3 },
-      { x: -0.2, y: 0.7, z: 0.2 },
-      { x: -0.5, y: 0.3, z: -0.3 },
-      { x: 0.2, y: 0.3, z: -0.1 },
-      { x: 0.2, y: 0.3, z: 0.3 },
-      { x: -0.2, y: 0.3, z: 0 },
-    ];
-
-    positions.forEach((pos) => {
-      const snow = new THREE.Mesh(snowGeometry, snowMaterial);
-      snow.position.set(pos.x, pos.y, pos.z);
-      scene.add(snow);
+    const snowMaterial = new THREE.MeshToonMaterial({
+      color: 0xffffff,
     });
+
+    const createSnow = (x: number, y: number, z: number) => {
+      const snow = new THREE.Mesh(snowGeometry, snowMaterial);
+      snow.position.set(x, y, z);
+      scene.add(snow);
+    };
+
+    createSnow(0.5, 0.5, 0.1);
+    createSnow(0.2, 0.5, 0.3);
+    createSnow(-0.2, 0.7, 0.2);
+    createSnow(-0.5, 0.3, -0.3);
+    createSnow(0.2, 0.3, -0.1);
+    createSnow(0.2, 0.3, 0.3);
+    createSnow(-0.2, 0.3, 0);
 
     // control 추가
     const controls = new OrbitControls(camera, renderer.domElement);

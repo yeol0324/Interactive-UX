@@ -21,8 +21,8 @@ export default function App() {
             }
           />
           <Route path="/fabric" element={<Fabric />} />
-          <Route path="/three" element={<Three />} />
-          <Route path="/drive" element={<Drive />} />
+          <Route path="/three/start" element={<Three />} />
+          <Route path="/three/drive" element={<Drive />} />
         </Routes>
       </Layout>
     </Suspense>
