@@ -241,8 +241,8 @@ function createAnimateFunction(
     camera.lookAt(object.position);
 
     // controls 업데이트
-    controls.target.copy(object.position);
-    controls.update();
+    // controls.target.copy(object.position);
+    // controls.update();
   };
 
   const animate = () => {
