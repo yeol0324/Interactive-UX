@@ -1,106 +1,128 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
 export default function ProfilePage() {
-  useEffect(() => {
-    const asyncInit = async () => {
-      const cleanup = await initThree();
-      return cleanup;
-    };
-    const cleanupPromise = asyncInit();
+  const mountRef = useRef<HTMLDivElement>(null);
+  const mouseOverFace = useRef<boolean>(false);
 
-    return () => {
-      cleanupPromise.then((cleanup) => cleanup());
-    };
-  }, []);
+  const onMouseMove = useCallback(
+    (
+      event: MouseEvent,
+      camera: THREE.Camera,
+      scene: THREE.Scene,
+      raycaster: THREE.Raycaster,
+      mouse: THREE.Vector2,
+      faceObject: GLTF,
+      objectGroup: THREE.Group
+    ) => {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(scene.children, true);
 
-  return <div />;
-}
+      const isOverFace = intersects.some((obj) => obj.object.userData.isFace);
+      mouseOverFace.current = isOverFace;
 
-const initThree = async () => {
-  const scene = createScene();
-  const camera = createCamera();
-  const renderer = createRenderer();
-  document.body.appendChild(renderer.domElement);
+      faceObject.scene.rotation.x = mouse.y / 10;
+      faceObject.scene.rotation.y = mouse.x / 10;
 
-  const faceObject = await createObject("emoji");
-  setupFaceObject(scene, faceObject);
-
-  const sunglassObject = await createObject("sunglasses");
-  setupSunglassObject(faceObject, sunglassObject);
-
-  const objectGroup = new THREE.Group();
-  scene.add(objectGroup);
-
-  await createAndAddObjects(objectGroup, faceObject);
-
-  const controls = setupControls(camera, renderer);
-  setupLights(scene);
-
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2();
-  let isMouseOverFace = false;
-  let targetY = sunglassObject.scene.position.y;
-
-  renderer.domElement.addEventListener("mousemove", (event) =>
-    onMouseMove(
-      event,
-      faceObject,
-      sunglassObject,
-      objectGroup,
-      raycaster,
-      mouse,
-      camera,
-      scene,
-      isMouseOverFace,
-      (overFace: boolean) => {
-        isMouseOverFace = overFace;
-        targetY = overFace ? 5 : 0;
-      }
-    )
-  );
-  renderer.domElement.addEventListener("resize", () =>
-    onWindowResize(camera, renderer)
+      objectGroup.rotation.x = -mouse.y / 10;
+      objectGroup.rotation.y = -mouse.x / 10;
+    },
+    []
   );
 
-  const animate = () => {
-    requestAnimationFrame(animate);
-    controls.update();
+  const initThree = useCallback(async (): Promise<() => void> => {
+    const mount = mountRef.current;
 
-    // 선글라스 위치를 부드럽게 업데이트
-    sunglassObject.scene.position.y +=
-      (targetY - sunglassObject.scene.position.y) * 0.1;
+    if (!mount) return () => {};
 
-    renderer.render(scene, camera);
-  };
-  animate();
+    const scene = createScene();
+    const camera = createCamera();
+    const renderer = createRenderer();
+    mount.appendChild(renderer.domElement);
 
-  return () => {
-    renderer.domElement.removeEventListener("mousemove", (event) =>
+    const controls = setupControls(camera, renderer);
+    setupLights(scene);
+
+    const faceObject = await createObject("emoji");
+    setupFaceObject(scene, faceObject);
+
+    const sunglassObject = await createObject("sunglasses");
+    setupSunglassObject(faceObject, sunglassObject);
+
+    const objectGroup = new THREE.Group();
+    scene.add(objectGroup);
+
+    await createAndAddObjects(objectGroup, faceObject);
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    const handleMouseMove = (event: MouseEvent) => {
       onMouseMove(
         event,
-        faceObject,
-        sunglassObject,
-        objectGroup,
-        raycaster,
-        mouse,
         camera,
         scene,
-        isMouseOverFace,
-        (overFace: boolean) => {
-          isMouseOverFace = overFace;
-          targetY = overFace ? 5 : 0;
-        }
-      )
-    );
-    renderer.domElement.removeEventListener("resize", () =>
-      onWindowResize(camera, renderer)
-    );
-    document.body.removeChild(renderer.domElement);
-  };
-};
+        raycaster,
+        mouse,
+        faceObject,
+        objectGroup
+      );
+    };
+
+    renderer.domElement.addEventListener("mousemove", handleMouseMove);
+
+    const animate = () => {
+      requestAnimationFrame(animate);
+      controls.update();
+
+      const faceBox = new THREE.Box3().setFromObject(faceObject.scene);
+
+      if (mouseOverFace.current) {
+        const targetY = faceBox.max.y / 2 + 5;
+        sunglassObject.scene.position.y +=
+          (targetY - sunglassObject.scene.position.y) * 0.1;
+      } else {
+        const originalY = faceBox.max.y / 2;
+        sunglassObject.scene.position.y +=
+          (originalY - sunglassObject.scene.position.y) * 0.1;
+      }
+
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    const handleResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      renderer.domElement.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("resize", handleResize);
+      if (renderer.domElement.parentNode) {
+        mount.removeChild(renderer.domElement);
+      }
+    };
+  }, [onMouseMove]);
+
+  useEffect(() => {
+    const cleanupPromise: Promise<() => void> = initThree();
+
+    return () => {
+      cleanupPromise.then((cleanup) => {
+        if (cleanup) cleanup();
+      });
+    };
+  }, [initThree]);
+
+  return <div ref={mountRef} />;
+}
 
 const createScene = (): THREE.Scene => {
   const scene = new THREE.Scene();
@@ -122,6 +144,7 @@ const createCamera = (): THREE.PerspectiveCamera => {
 const createRenderer = (): THREE.WebGLRenderer => {
   const renderer = new THREE.WebGLRenderer();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x000000, 1); // Ensure the clear color is set
   return renderer;
 };
 
@@ -202,44 +225,4 @@ const setupLights = (scene: THREE.Scene) => {
   const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
   directionalLight.position.set(0, 1, 1).normalize();
   scene.add(directionalLight);
-};
-
-const onMouseMove = (
-  event: MouseEvent,
-  faceObject: GLTF,
-  sunglasses: GLTF,
-  objectGroup: THREE.Group,
-  raycaster: THREE.Raycaster,
-  mouse: THREE.Vector2,
-  camera: THREE.Camera,
-  scene: THREE.Scene,
-  isMouseOverFace: boolean,
-  setMouseOverFace: (overFace: boolean) => void
-) => {
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(scene.children, true);
-
-  const isOverFace = intersects.some((obj) => obj.object.userData.isFace);
-  if (isOverFace && !isMouseOverFace) {
-    setMouseOverFace(true);
-  } else if (!isOverFace && isMouseOverFace) {
-    setMouseOverFace(false);
-  }
-
-  faceObject.scene.rotation.x = mouse.y / 10;
-  faceObject.scene.rotation.y = mouse.x / 10;
-
-  objectGroup.rotation.x = -mouse.y / 10;
-  objectGroup.rotation.y = -mouse.x / 10;
-};
-
-const onWindowResize = (
-  camera: THREE.PerspectiveCamera,
-  renderer: THREE.WebGLRenderer
-) => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
 };
