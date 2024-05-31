@@ -41,9 +41,25 @@ const initThree = async () => {
 
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
+  let isMouseOverFace = false;
+  let targetY = sunglassObject.scene.position.y;
 
   renderer.domElement.addEventListener("mousemove", (event) =>
-    onMouseMove(event, faceObject, objectGroup, raycaster, mouse, camera, scene)
+    onMouseMove(
+      event,
+      faceObject,
+      sunglassObject,
+      objectGroup,
+      raycaster,
+      mouse,
+      camera,
+      scene,
+      isMouseOverFace,
+      (overFace: boolean) => {
+        isMouseOverFace = overFace;
+        targetY = overFace ? 5 : 0;
+      }
+    )
   );
   renderer.domElement.addEventListener("resize", () =>
     onWindowResize(camera, renderer)
@@ -52,6 +68,11 @@ const initThree = async () => {
   const animate = () => {
     requestAnimationFrame(animate);
     controls.update();
+
+    // 선글라스 위치를 부드럽게 업데이트
+    sunglassObject.scene.position.y +=
+      (targetY - sunglassObject.scene.position.y) * 0.1;
+
     renderer.render(scene, camera);
   };
   animate();
@@ -61,11 +82,17 @@ const initThree = async () => {
       onMouseMove(
         event,
         faceObject,
+        sunglassObject,
         objectGroup,
         raycaster,
         mouse,
         camera,
-        scene
+        scene,
+        isMouseOverFace,
+        (overFace: boolean) => {
+          isMouseOverFace = overFace;
+          targetY = overFace ? 5 : 0;
+        }
       )
     );
     renderer.domElement.removeEventListener("resize", () =>
@@ -107,6 +134,11 @@ const createObject = async (fileName: string): Promise<GLTF> => {
 
 const setupFaceObject = (scene: THREE.Scene, faceObject: GLTF) => {
   faceObject.scene.position.set(0, -5, 0);
+  faceObject.scene.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.userData.isFace = true;
+    }
+  });
   scene.add(faceObject.scene);
 };
 
@@ -114,7 +146,6 @@ const setupSunglassObject = (faceObject: GLTF, sunglassObject: GLTF) => {
   const faceBox = new THREE.Box3().setFromObject(faceObject.scene);
   sunglassObject.scene.position.set(0, faceBox.max.y / 2, faceBox.max.z);
   sunglassObject.scene.scale.set(8, 8, 8);
-  sunglassObject.scene.userData.isSunglasses = true;
   faceObject.scene.add(sunglassObject.scene);
 };
 
@@ -176,26 +207,26 @@ const setupLights = (scene: THREE.Scene) => {
 const onMouseMove = (
   event: MouseEvent,
   faceObject: GLTF,
+  sunglasses: GLTF,
   objectGroup: THREE.Group,
   raycaster: THREE.Raycaster,
   mouse: THREE.Vector2,
   camera: THREE.Camera,
-  scene: THREE.Scene
+  scene: THREE.Scene,
+  isMouseOverFace: boolean,
+  setMouseOverFace: (overFace: boolean) => void
 ) => {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
-  let intersect = raycaster.intersectObjects(scene.children);
+  const intersects = raycaster.intersectObjects(scene.children, true);
 
-  intersect.forEach((obj) => {
-    if (obj.object.userData.isSunglasses) {
-      obj.object.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.rotation.x += 1; // 각 하위 객체에 회전 적용
-        }
-      });
-    }
-  });
+  const isOverFace = intersects.some((obj) => obj.object.userData.isFace);
+  if (isOverFace && !isMouseOverFace) {
+    setMouseOverFace(true);
+  } else if (!isOverFace && isMouseOverFace) {
+    setMouseOverFace(false);
+  }
 
   faceObject.scene.rotation.x = mouse.y / 10;
   faceObject.scene.rotation.y = mouse.x / 10;
