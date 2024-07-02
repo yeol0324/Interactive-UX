@@ -1,7 +1,11 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useCallback } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
+import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry";
+import { FontLoader, FontData } from "three/examples/jsm/loaders/FontLoader";
+import helvetiker_regular from "three/examples/fonts/helvetiker_regular.typeface.json";
 
 export default function ProfilePage() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -42,6 +46,7 @@ export default function ProfilePage() {
     const scene = createScene();
     const camera = createCamera();
     const renderer = createRenderer();
+
     mount.appendChild(renderer.domElement);
 
     const controls = setupControls(camera, renderer);
@@ -55,8 +60,6 @@ export default function ProfilePage() {
 
     const objectGroup = new THREE.Group();
     scene.add(objectGroup);
-
-    await createAndAddObjects(objectGroup, faceObject);
 
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
@@ -73,27 +76,29 @@ export default function ProfilePage() {
       );
     };
 
-    renderer.domElement.addEventListener("mousemove", handleMouseMove);
+    const faceBox = new THREE.Box3().setFromObject(faceObject.scene);
 
     const animate = () => {
       requestAnimationFrame(animate);
       controls.update();
 
-      const faceBox = new THREE.Box3().setFromObject(faceObject.scene);
-
-      if (mouseOverFace.current) {
-        const targetY = faceBox.max.y / 2 + 5;
-        sunglassObject.scene.position.y +=
-          (targetY - sunglassObject.scene.position.y) * 0.1;
-      } else {
-        const originalY = faceBox.max.y / 2;
-        sunglassObject.scene.position.y +=
-          (originalY - sunglassObject.scene.position.y) * 0.1;
-      }
+      const targetY = mouseOverFace.current
+        ? faceBox.max.y / 2 + 5
+        : faceBox.max.y / 2;
+      sunglassObject.scene.position.y +=
+        (targetY - sunglassObject.scene.position.y) * 0.1;
 
       renderer.render(scene, camera);
     };
     animate();
+
+    await createAndAddObjects(objectGroup, faceObject);
+
+    renderer.domElement.addEventListener("mousemove", handleMouseMove);
+
+    const textObject = await createTextObject("hover me !");
+    textObject.position.set(-10, 5, 0);
+    scene.add(textObject);
 
     const handleResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
@@ -105,9 +110,31 @@ export default function ProfilePage() {
     return () => {
       renderer.domElement.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("resize", handleResize);
-      if (renderer.domElement.parentNode) {
-        mount.removeChild(renderer.domElement);
+      mount.removeChild(renderer.domElement);
+
+      const disposeObject = (object: THREE.Object3D) => {
+        object.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach((material) => material.dispose());
+              } else {
+                child.material.dispose();
+              }
+            }
+          }
+        });
+      };
+
+      disposeObject(faceObject.scene);
+      disposeObject(sunglassObject.scene);
+
+      if (textObject) {
+        disposeObject(textObject);
       }
+
+      renderer.dispose();
     };
   }, [onMouseMove]);
 
@@ -121,7 +148,9 @@ export default function ProfilePage() {
     };
   }, [initThree]);
 
-  return <div ref={mountRef} />;
+  return (
+    <div style={{ position: "absolute", top: 0, left: 0 }} ref={mountRef} />
+  );
 }
 
 const createScene = (): THREE.Scene => {
@@ -142,17 +171,54 @@ const createCamera = (): THREE.PerspectiveCamera => {
 };
 
 const createRenderer = (): THREE.WebGLRenderer => {
-  const renderer = new THREE.WebGLRenderer();
+  const renderer = new THREE.WebGLRenderer({ antialias: false });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setClearColor(0x000000, 1); // Ensure the clear color is set
+  renderer.setClearColor(0x000000, 1);
   return renderer;
 };
 
 const createObject = async (fileName: string): Promise<GLTF> => {
   const loader = new GLTFLoader();
+  const dracoLoader = new DRACOLoader();
+  dracoLoader.setDecoderPath("/path/to/draco/gltf/");
+  loader.setDRACOLoader(dracoLoader);
   const url = `${process.env.PUBLIC_URL}/glb/${fileName}.glb`;
   const gltf = await loader.loadAsync(url);
+
+  // 텍스처가 있는지 확인하고 필요시 업데이트
+  gltf.scene.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      const materials = Array.isArray(child.material)
+        ? child.material
+        : [child.material];
+      materials.forEach((material) => {
+        if (material.map) {
+          material.map.needsUpdate = true; // 텍스처가 업데이트되었음을 표시
+        }
+      });
+    }
+  });
   return gltf;
+};
+
+const createTextObject = async (string: string): Promise<THREE.Mesh> => {
+  const loader = new FontLoader();
+  const font = loader.parse(helvetiker_regular as unknown as FontData);
+
+  const textGeometry = new TextGeometry(string, {
+    font: font,
+    size: 5,
+    height: 1,
+    curveSegments: 5,
+    bevelEnabled: true,
+    bevelThickness: 0.1,
+    bevelSize: 0.2,
+    bevelOffset: 0,
+    bevelSegments: 3,
+  });
+  const material = new THREE.MeshStandardMaterial({ color: 0xffffff });
+  const textMesh = new THREE.Mesh(textGeometry, material);
+  return textMesh;
 };
 
 const setupFaceObject = (scene: THREE.Scene, faceObject: GLTF) => {
@@ -169,6 +235,20 @@ const setupSunglassObject = (faceObject: GLTF, sunglassObject: GLTF) => {
   const faceBox = new THREE.Box3().setFromObject(faceObject.scene);
   sunglassObject.scene.position.set(0, faceBox.max.y / 2, faceBox.max.z);
   sunglassObject.scene.scale.set(8, 8, 8);
+
+  sunglassObject.scene.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      const materials = Array.isArray(child.material)
+        ? child.material
+        : [child.material];
+      materials.forEach((material) => {
+        if (material.map) {
+          material.map.needsUpdate = true; // 텍스처가 업데이트되었음을 표시
+        }
+      });
+    }
+  });
+
   faceObject.scene.add(sunglassObject.scene);
 };
 
@@ -179,14 +259,12 @@ const createAndAddObjects = async (
   const objectNames = [
     { name: "sparkle", position: [3, 3, 7] },
     { name: "snowflake", position: [-3, 3, 7] },
-    { name: "lamp", position: [5, 3, -2] },
+    { name: "lamp", position: [-3, -6, 6] },
     { name: "cherry", position: [-5, 3, -2] },
     { name: "bulb", position: [7, 0, 3] },
     { name: "swirl", position: [-8, 0, 3] },
     { name: "lightning", position: [8, -9, -4] },
-    { name: "fish", position: [-6, -9, -4] },
     { name: "diamond", position: [3, -6, 6] },
-    { name: "idea_lamp", position: [-3, -6, 6] },
   ];
   const faceBox = new THREE.Box3().setFromObject(faceObject.scene);
 
