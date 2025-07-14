@@ -16,7 +16,7 @@ export default function Layout({ children, isPending }: LayoutProps) {
         }}
       ></section>
       <main>
-        <button onClick={() => navigate("/")}>home</button>
+        {/* <button onClick={() => navigate("/")}>home</button> */}
         {children}
       </main>
     </div>
