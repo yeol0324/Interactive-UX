@@ -3,25 +3,84 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
-// 텍스트 관련 import (현재 사용하지 않음)
+
 // import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry";
 // import { FontLoader, FontData } from "three/examples/jsm/loaders/FontLoader";
 // import helvetiker_regular from "three/examples/fonts/helvetiker_regular.typeface.json";
 
+// 상수 정의
+const CONFIG = {
+  CAMERA: {
+    FOV: 75,
+    NEAR: 0.1,
+    FAR: 1000,
+    POSITION: { x: 0, y: 0, z: 25 },
+  },
+  RENDERER: {
+    CLEAR_COLOR: 0x000000,
+    BACKGROUND_COLOR: 0xfdfdfd,
+  },
+  CONTROLS: {
+    DAMPING_FACTOR: 0.05,
+    MAX_POLAR_ANGLE: Math.PI / 2,
+  },
+  LIGHTS: {
+    AMBIENT: { color: 0xfefefe, intensity: 0.7 },
+    DIRECTIONAL: {
+      color: 0xffffff,
+      intensity: 1.2,
+      position: { x: 5, y: 10, z: 7 },
+    },
+    POINT: {
+      color: 0xffffff,
+      intensity: 0.5,
+      position: { x: -10, y: -10, z: 10 },
+    },
+  },
+  ANIMATION: {
+    MOUSE_THROTTLE_MS: 16,
+    FRAME_RATE_LIMIT: 1000 / 60,
+    ROTATION_SPEED: 0.1,
+    LERP_FACTOR: 0.1,
+    RESIZE_DEBOUNCE_MS: 100,
+  },
+  OBJECTS: {
+    FACE_SCALE: 1,
+    SUNGLASS_SCALE: 8,
+    TEXT_SIZE: 2.5,
+    TEXT_HEIGHT: 1,
+    TEXT_COLOR: 0xffffff,
+  },
+} as const;
+
+// 타입 정의
+interface ObjectData {
+  name: string;
+  position: [number, number, number];
+}
+interface MousePosition {
+  x: number;
+  y: number;
+}
+
 const createScene = (): THREE.Scene => {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xffffff);
+  scene.background = new THREE.Color(CONFIG.RENDERER.BACKGROUND_COLOR);
   return scene;
 };
 
 const createCamera = (): THREE.PerspectiveCamera => {
   const camera = new THREE.PerspectiveCamera(
-    75,
+    CONFIG.CAMERA.FOV,
     window.innerWidth / window.innerHeight,
-    0.1,
-    1000
+    CONFIG.CAMERA.NEAR,
+    CONFIG.CAMERA.FAR
   );
-  camera.position.set(0, 0, 25);
+  camera.position.set(
+    CONFIG.CAMERA.POSITION.x,
+    CONFIG.CAMERA.POSITION.y,
+    CONFIG.CAMERA.POSITION.z
+  );
   return camera;
 };
 
@@ -31,7 +90,7 @@ const createRenderer = (): THREE.WebGLRenderer => {
     powerPreference: "high-performance",
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setClearColor(0x000000, 1);
+  renderer.setClearColor(CONFIG.RENDERER.CLEAR_COLOR, 1);
   renderer.setPixelRatio(window.devicePixelRatio);
   return renderer;
 };
@@ -52,26 +111,31 @@ const createObject = async (fileName: string): Promise<GLTF> => {
   }
 };
 
-// 텍스트 객체 생성 함수 (현재 사용하지 않음)
-// const createTextObject = async (string: string): Promise<THREE.Mesh> => {
+// 텍스트 객체 생성
+// const createTextObject = async (text: string): Promise<THREE.Mesh> => {
 //   const loader = new FontLoader();
 //   const font = loader.parse(helvetiker_regular as unknown as FontData);
-//   const textGeometry = new TextGeometry(string, {
+//
+//   const textGeometry = new TextGeometry(text, {
 //     font: font,
-//     size: 4,
-//     height: 1,
-//     curveSegments: 8,
+//     size: CONFIG.OBJECTS.TEXT_SIZE,
+//     height: CONFIG.OBJECTS.TEXT_HEIGHT,
+//     curveSegments: 4,
 //     bevelEnabled: true,
-//     bevelThickness: 0.1,
-//     bevelSize: 0.2,
+//     bevelThickness: 0.2,
+//     bevelSize: 0.4,
 //     bevelOffset: 0,
-//     bevelSegments: 5,
+//     bevelSegments: 4,
 //   });
+//
 //   textGeometry.computeBoundingBox();
 //   textGeometry.center();
-//   const material = new THREE.MeshStandardMaterial({ color: 0xf0f0f0 });
-//   const textMesh = new THREE.Mesh(textGeometry, material);
-//   return textMesh;
+//
+//   const material = new THREE.MeshStandardMaterial({
+//     color: CONFIG.OBJECTS.TEXT_COLOR
+//   });
+//
+//   return new THREE.Mesh(textGeometry, material);
 // };
 
 const setupControls = (
@@ -80,27 +144,46 @@ const setupControls = (
 ): OrbitControls => {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.05;
+  controls.dampingFactor = CONFIG.CONTROLS.DAMPING_FACTOR;
   controls.screenSpacePanning = false;
-  controls.maxPolarAngle = Math.PI / 2;
+  controls.maxPolarAngle = CONFIG.CONTROLS.MAX_POLAR_ANGLE;
   controls.update();
   return controls;
 };
 
-const setupLights = (scene: THREE.Scene) => {
-  const ambientLight = new THREE.AmbientLight(0xfefefe, 0.7);
+const setupLights = (scene: THREE.Scene): void => {
+  const ambientLight = new THREE.AmbientLight(
+    CONFIG.LIGHTS.AMBIENT.color,
+    CONFIG.LIGHTS.AMBIENT.intensity
+  );
   scene.add(ambientLight);
 
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
-  directionalLight.position.set(5, 10, 7).normalize();
+  const directionalLight = new THREE.DirectionalLight(
+    CONFIG.LIGHTS.DIRECTIONAL.color,
+    CONFIG.LIGHTS.DIRECTIONAL.intensity
+  );
+  directionalLight.position
+    .set(
+      CONFIG.LIGHTS.DIRECTIONAL.position.x,
+      CONFIG.LIGHTS.DIRECTIONAL.position.y,
+      CONFIG.LIGHTS.DIRECTIONAL.position.z
+    )
+    .normalize();
   scene.add(directionalLight);
 
-  const pointLight = new THREE.PointLight(0xffffff, 0.5);
-  pointLight.position.set(-10, -10, 10);
+  const pointLight = new THREE.PointLight(
+    CONFIG.LIGHTS.POINT.color,
+    CONFIG.LIGHTS.POINT.intensity
+  );
+  pointLight.position.set(
+    CONFIG.LIGHTS.POINT.position.x,
+    CONFIG.LIGHTS.POINT.position.y,
+    CONFIG.LIGHTS.POINT.position.z
+  );
   scene.add(pointLight);
 };
 
-const setupFaceObject = (scene: THREE.Scene, faceObject: GLTF) => {
+const setupFaceObject = (scene: THREE.Scene, faceObject: GLTF): void => {
   faceObject.scene.position.set(0, -5, 0);
   faceObject.scene.traverse((child) => {
     if (child instanceof THREE.Mesh) {
@@ -112,7 +195,7 @@ const setupFaceObject = (scene: THREE.Scene, faceObject: GLTF) => {
   scene.add(faceObject.scene);
 };
 
-const setupSunglassObject = (faceObject: GLTF, sunglassObject: GLTF) => {
+const setupSunglassObject = (faceObject: GLTF, sunglassObject: GLTF): void => {
   const faceBox = new THREE.Box3().setFromObject(faceObject.scene);
   const faceCenter = faceBox.getCenter(new THREE.Vector3());
   const faceSize = faceBox.getSize(new THREE.Vector3());
@@ -122,44 +205,48 @@ const setupSunglassObject = (faceObject: GLTF, sunglassObject: GLTF) => {
     faceCenter.y + faceSize.y / 2,
     faceCenter.z + faceSize.z / 2
   );
-  sunglassObject.scene.scale.set(8, 8, 8);
+  sunglassObject.scene.scale.set(
+    CONFIG.OBJECTS.SUNGLASS_SCALE,
+    CONFIG.OBJECTS.SUNGLASS_SCALE,
+    CONFIG.OBJECTS.SUNGLASS_SCALE
+  );
 
   faceObject.scene.add(sunglassObject.scene);
 };
 
+const OBJECT_DATA: ObjectData[] = [
+  { name: "sparkle", position: [3, 3, 7] },
+  { name: "snowflake", position: [-3, 3, 7] },
+  { name: "lamp", position: [-3, -6, 6] },
+  { name: "bulb", position: [7, 0, 3] },
+  { name: "swirl", position: [-8, 0, 3] },
+  { name: "cherry", position: [3, -6, 6] },
+];
+
 const createAndAddObjects = async (
   objectGroup: THREE.Group,
   faceObject: GLTF
-) => {
-  const objectNames = [
-    { name: "sparkle", position: [3, 3, 7] },
-    { name: "snowflake", position: [-3, 3, 7] },
-    { name: "lamp", position: [-3, -6, 6] },
-    { name: "bulb", position: [7, 0, 3] },
-    { name: "swirl", position: [-8, 0, 3] },
-    { name: "cherry", position: [3, -6, 6] },
-  ];
+): Promise<void> => {
   const faceBox = new THREE.Box3().setFromObject(faceObject.scene);
   const standardSize = faceBox.getSize(new THREE.Vector3()).x;
 
-  for (const objectData of objectNames) {
+  const loadPromises = OBJECT_DATA.map(async (objectData) => {
     try {
       const obj = await createObject(objectData.name);
       const objBox = new THREE.Box3().setFromObject(obj.scene);
       const objSize = objBox.getSize(new THREE.Vector3());
       const scaleFactor =
         standardSize / 5 / Math.max(objSize.x, objSize.y, objSize.z);
+
       obj.scene.scale.set(scaleFactor, scaleFactor, scaleFactor);
-      obj.scene.position.set(
-        objectData.position[0],
-        objectData.position[1],
-        objectData.position[2]
-      );
+      obj.scene.position.set(...objectData.position);
       objectGroup.add(obj.scene);
     } catch (error) {
-      console.error(`Failed to load and add object: ${objectData.name}`, error);
+      console.error(`Failed to load object: ${objectData.name}`, error);
     }
-  }
+  });
+
+  await Promise.all(loadPromises);
 };
 
 /**clean up */
@@ -185,15 +272,8 @@ export default function ProfilePage() {
   const mountRef = useRef<HTMLDivElement>(null);
   const mouseOverFace = useRef<boolean>(false);
   const animationFrameId = useRef<number | null>(null);
-
-  // 성능 최적화: 마우스 이벤트 throttling을 위한 ref
   const lastMouseUpdate = useRef<number>(0);
-  const MOUSE_THROTTLE_MS = 16; // 60fps에 맞춤
-
-  // 성능 최적화: 마우스 위치 캐싱
-  const mousePosition = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-
-  // 성능 최적화: raycaster 재사용을 위한 ref
+  const mousePosition = useRef<MousePosition>({ x: 0, y: 0 });
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
   const mouseRef = useRef<THREE.Vector2 | null>(null);
 
@@ -205,16 +285,14 @@ export default function ProfilePage() {
       objectGroup: THREE.Group
     ) => {
       const now = performance.now();
-      if (now - lastMouseUpdate.current < MOUSE_THROTTLE_MS) {
-        return; // throttling으로 불필요한 계산 방지
+      if (now - lastMouseUpdate.current < CONFIG.ANIMATION.MOUSE_THROTTLE_MS) {
+        return;
       }
       lastMouseUpdate.current = now;
 
-      // 마우스 위치 계산 및 캐싱
       const newX = (event.clientX / window.innerWidth) * 2 - 1;
       const newY = -(event.clientY / window.innerHeight) * 2 + 1;
 
-      // 위치가 실제로 변경되었을 때만 업데이트
       if (
         Math.abs(mousePosition.current.x - newX) < 0.001 &&
         Math.abs(mousePosition.current.y - newY) < 0.001
@@ -225,38 +303,36 @@ export default function ProfilePage() {
       mousePosition.current.x = newX;
       mousePosition.current.y = newY;
 
-      // raycaster 재사용
       if (!raycasterRef.current) raycasterRef.current = new THREE.Raycaster();
       if (!mouseRef.current) mouseRef.current = new THREE.Vector2();
 
       mouseRef.current.set(mousePosition.current.x, mousePosition.current.y);
       raycasterRef.current.setFromCamera(mouseRef.current, camera);
 
-      if (faceObject && faceObject.scene) {
+      if (faceObject?.scene) {
         const intersects = raycasterRef.current.intersectObjects(
           [faceObject.scene],
           true
         );
-        const isOverFace = intersects.some((obj) => obj.object.userData.isFace);
-        mouseOverFace.current = isOverFace;
+        mouseOverFace.current = intersects.some(
+          (obj) => obj.object.userData.isFace
+        );
 
-        // 회전 애니메이션 최적화: 더 부드러운 움직임
-        const rotationSpeed = 0.1;
         faceObject.scene.rotation.x +=
           (mousePosition.current.y / 10 - faceObject.scene.rotation.x) *
-          rotationSpeed;
+          CONFIG.ANIMATION.ROTATION_SPEED;
         faceObject.scene.rotation.y +=
           (mousePosition.current.x / 10 - faceObject.scene.rotation.y) *
-          rotationSpeed;
+          CONFIG.ANIMATION.ROTATION_SPEED;
       }
+
       if (objectGroup) {
-        const rotationSpeed = 0.1;
         objectGroup.rotation.x +=
           (-mousePosition.current.y / 10 - objectGroup.rotation.x) *
-          rotationSpeed;
+          CONFIG.ANIMATION.ROTATION_SPEED;
         objectGroup.rotation.y +=
           (-mousePosition.current.x / 10 - objectGroup.rotation.y) *
-          rotationSpeed;
+          CONFIG.ANIMATION.ROTATION_SPEED;
       }
     },
     []
@@ -277,7 +353,6 @@ export default function ProfilePage() {
 
     let faceObject: GLTF | null = null;
     let sunglassObject: GLTF | null = null;
-    // let textObject: THREE.Mesh | null = null;
     const objectGroup = new THREE.Group();
     scene.add(objectGroup);
 
@@ -290,61 +365,49 @@ export default function ProfilePage() {
         setupSunglassObject(faceObject, sunglassObject);
       }
       await createAndAddObjects(objectGroup, faceObject);
-      // textObject = await createTextObject(`Welcome to\nmy blog!`);
-      // textObject.position.set(-10, 5, 0);
-      // scene.add(textObject);
     } catch (error) {
       console.error("Failed to load initial 3D objects:", error);
       return () => {};
     }
 
-    // 성능 최적화: 이벤트 리스너 최적화
     const handleMouseMove = (event: MouseEvent) => {
       if (faceObject && sunglassObject) {
         onMouseMove(event, camera, faceObject, objectGroup);
       }
     };
 
-    // 성능 최적화: passive 이벤트 리스너 사용
     renderer.domElement.addEventListener("mousemove", handleMouseMove, {
       passive: true,
     });
 
-    // 성능 최적화: 애니메이션 최적화를 위한 변수들
     let lastFrameTime = 0;
-    const FRAME_RATE_LIMIT = 1000 / 60; // 60fps 제한
 
     const animate = (currentTime: number) => {
       animationFrameId.current = requestAnimationFrame(animate);
 
-      // 프레임 레이트 제한으로 불필요한 렌더링 방지
-      if (currentTime - lastFrameTime < FRAME_RATE_LIMIT) {
+      if (currentTime - lastFrameTime < CONFIG.ANIMATION.FRAME_RATE_LIMIT) {
         return;
       }
       lastFrameTime = currentTime;
 
       controls.update();
 
-      // 성능 최적화: sunglass 애니메이션 최적화
       if (faceObject && sunglassObject) {
         const faceBox = new THREE.Box3().setFromObject(faceObject.scene);
         const targetY = mouseOverFace.current
           ? faceBox.max.y / 2 + 5
           : faceBox.max.y / 2;
 
-        // 더 부드러운 애니메이션을 위한 lerp 사용
-        const lerpFactor = 0.1;
         sunglassObject.scene.position.y = THREE.MathUtils.lerp(
           sunglassObject.scene.position.y,
           targetY,
-          lerpFactor
+          CONFIG.ANIMATION.LERP_FACTOR
         );
       }
       renderer.render(scene, camera);
     };
     animate(0);
 
-    // 성능 최적화: 리사이즈 이벤트 throttling
     let resizeTimeout: NodeJS.Timeout | null = null;
     const handleResize = () => {
       if (resizeTimeout) {
@@ -354,11 +417,10 @@ export default function ProfilePage() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-      }, 100); // 100ms debounce
+      }, CONFIG.ANIMATION.RESIZE_DEBOUNCE_MS);
     };
     window.addEventListener("resize", handleResize, { passive: true });
 
-    /**성능 최적화: 완전한 cleanup */
     return () => {
       // 애니메이션 정지
       if (animationFrameId.current) {
@@ -396,8 +458,6 @@ export default function ProfilePage() {
       // Three.js 객체들 정리
       controls.dispose();
       renderer.dispose();
-
-      // 메모리 정리 (const 변수이므로 null 할당 제거)
     };
   }, [onMouseMove]);
 
