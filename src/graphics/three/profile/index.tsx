@@ -4,9 +4,9 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
 
-// import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry";
-// import { FontLoader, FontData } from "three/examples/jsm/loaders/FontLoader";
-// import helvetiker_regular from "three/examples/fonts/helvetiker_regular.typeface.json";
+import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry";
+import { FontLoader, FontData } from "three/examples/jsm/loaders/FontLoader";
+import helvetiker_regular from "three/examples/fonts/helvetiker_regular.typeface.json";
 
 // 상수 정의
 const CONFIG = {
@@ -51,6 +51,12 @@ const CONFIG = {
     TEXT_HEIGHT: 1,
     TEXT_COLOR: 0xffffff,
   },
+  TEXT_ANIMATION: {
+    START_SCALE: 0,
+    END_SCALE: 1,
+    DURATION_MS: 1500,
+    EASING: 0.1,
+  },
 } as const;
 
 // 타입 정의
@@ -61,6 +67,12 @@ interface ObjectData {
 interface MousePosition {
   x: number;
   y: number;
+}
+
+interface TextAnimationState {
+  isAnimating: boolean;
+  startTime: number;
+  currentScale: number;
 }
 
 const createScene = (): THREE.Scene => {
@@ -112,31 +124,35 @@ const createObject = async (fileName: string): Promise<GLTF> => {
 };
 
 // 텍스트 객체 생성
-// const createTextObject = async (text: string): Promise<THREE.Mesh> => {
-//   const loader = new FontLoader();
-//   const font = loader.parse(helvetiker_regular as unknown as FontData);
-//
-//   const textGeometry = new TextGeometry(text, {
-//     font: font,
-//     size: CONFIG.OBJECTS.TEXT_SIZE,
-//     height: CONFIG.OBJECTS.TEXT_HEIGHT,
-//     curveSegments: 4,
-//     bevelEnabled: true,
-//     bevelThickness: 0.2,
-//     bevelSize: 0.4,
-//     bevelOffset: 0,
-//     bevelSegments: 4,
-//   });
-//
-//   textGeometry.computeBoundingBox();
-//   textGeometry.center();
-//
-//   const material = new THREE.MeshStandardMaterial({
-//     color: CONFIG.OBJECTS.TEXT_COLOR
-//   });
-//
-//   return new THREE.Mesh(textGeometry, material);
-// };
+const createTextObject = async (text: string): Promise<THREE.Mesh> => {
+  const loader = new FontLoader();
+  const font = loader.parse(helvetiker_regular as unknown as FontData);
+
+  const textGeometry = new TextGeometry(text, {
+    font: font,
+    size: CONFIG.OBJECTS.TEXT_SIZE,
+    height: CONFIG.OBJECTS.TEXT_HEIGHT,
+    curveSegments: 4,
+    bevelEnabled: true,
+    bevelThickness: 0.2,
+    bevelSize: 0.4,
+    bevelOffset: 0,
+    bevelSegments: 4,
+  });
+
+  textGeometry.computeBoundingBox();
+  textGeometry.center();
+
+  const material = new THREE.MeshStandardMaterial({
+    color: CONFIG.OBJECTS.TEXT_COLOR,
+  });
+
+  const textMesh = new THREE.Mesh(textGeometry, material);
+
+  textMesh.scale.set(0, 0, 0);
+
+  return textMesh;
+};
 
 const setupControls = (
   camera: THREE.PerspectiveCamera,
@@ -276,6 +292,19 @@ export default function ProfilePage() {
   const mousePosition = useRef<MousePosition>({ x: 0, y: 0 });
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
   const mouseRef = useRef<THREE.Vector2 | null>(null);
+  const textAnimationState = useRef<TextAnimationState>({
+    isAnimating: false,
+    startTime: 0,
+    currentScale: 0,
+  });
+
+  const startTextAnimation = useCallback((textObject: THREE.Mesh) => {
+    textAnimationState.current = {
+      isAnimating: true,
+      startTime: performance.now(),
+      currentScale: CONFIG.TEXT_ANIMATION.START_SCALE,
+    };
+  }, []);
 
   const onMouseMove = useCallback(
     (
@@ -353,6 +382,8 @@ export default function ProfilePage() {
 
     let faceObject: GLTF | null = null;
     let sunglassObject: GLTF | null = null;
+    let textObject: THREE.Mesh | null = null;
+
     const objectGroup = new THREE.Group();
     scene.add(objectGroup);
 
@@ -365,6 +396,11 @@ export default function ProfilePage() {
         setupSunglassObject(faceObject, sunglassObject);
       }
       await createAndAddObjects(objectGroup, faceObject);
+      textObject = await createTextObject(`Welcome to\nmy blog!`);
+      textObject.position.set(-2, 10, 0);
+      scene.add(textObject);
+
+      startTextAnimation(textObject);
     } catch (error) {
       console.error("Failed to load initial 3D objects:", error);
       return () => {};
@@ -391,6 +427,28 @@ export default function ProfilePage() {
       lastFrameTime = currentTime;
 
       controls.update();
+
+      // 텍스트 애니메이션 처리
+      if (textObject && textAnimationState.current.isAnimating) {
+        const elapsed = currentTime - textAnimationState.current.startTime;
+        const progress = Math.min(
+          elapsed / CONFIG.TEXT_ANIMATION.DURATION_MS,
+          1
+        );
+
+        const easedProgress = 1 - Math.pow(1 - progress, 3);
+        const currentScale = THREE.MathUtils.lerp(
+          CONFIG.TEXT_ANIMATION.START_SCALE,
+          CONFIG.TEXT_ANIMATION.END_SCALE,
+          easedProgress
+        );
+
+        textObject.scale.set(currentScale, currentScale, currentScale);
+
+        if (progress >= 1) {
+          textAnimationState.current.isAnimating = false;
+        }
+      }
 
       if (faceObject && sunglassObject) {
         const faceBox = new THREE.Box3().setFromObject(faceObject.scene);
@@ -459,7 +517,7 @@ export default function ProfilePage() {
       controls.dispose();
       renderer.dispose();
     };
-  }, [onMouseMove]);
+  }, [onMouseMove, startTextAnimation]);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
